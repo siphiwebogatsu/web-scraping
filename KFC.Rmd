@@ -1,0 +1,260 @@
+---
+title: "KFC"
+author: "Siphiwe Bogatsu"
+date: "2024-02-15"
+output: html_document
+---
+
+```{r}
+rm(list = ls())
+pacman::p_load("rvest", "tidyverse", "RSelenium", "wdman", "netstat", "stringr")
+
+selenium()
+```
+
+```{r}
+
+# read the excel file from Post Office website - it contains all possible areas in SA
+postcodes = read_excel("postalcodes.xls")
+areas     = as.data.frame(unique(postalcodes$AREA))
+
+# check for NA
+areas = areas[-which(is.na(areas)),1] |> as.data.frame()
+
+# clean 
+areas = areas[-which(areas[,1] == "Town"),1] |> as.data.frame()
+
+colnames(areas) = "Towns"
+
+areas$Towns = areas$Towns |> str_to_title()
+
+
+# test 
+test = areas[1:10,] |>as.data.frame(
+  
+)
+
+```
+
+
+- Side note: running this chunk takes alot of time. Sometimes the program crashes. 
+```{r}
+# Use RSelenium 
+# set up chrome internet & then search for KFC webpage. 
+ remote_driver = rsDriver(browser = "chrome", 
+                           chromever = "121.0.6167.161", 
+                           verbose = F, 
+                           port = free_port())
+
+remDR1          = remote_driver$client
+remDR1$navigate("https://order.kfc.co.za/find-store")
+
+
+#
+address = c()
+store   = c()
+
+i = 1
+while ( i <= length(areas)){
+  
+  # Design a SEARCH box & search each address  
+  search_box = remDR1$findElement("xpath", '//*[contains(concat( " ", @class, " " ), concat( " ", "mt-2", " " ))]')
+  search_box$sendKeysToElement(list(paste(areas[i,1], ",South Africa"), key = "enter"))
+  
+  # this is just a loop to delay time after searching the address to allow for element extraction
+  for (j in 1:10){
+    print(j)
+    for (j in 1:100){
+      print(j)
+    }
+  }
+  
+  # extract the addresses & shop name
+  
+  adrs = remDR1$findElements("xpath",
+        '//*[contains(concat( " ", @class, " " ), concat( " ", "store-address", " " ))]')
+  
+  adrs = lapply(adrs, function(x) x$getElementText()) |> unlist()
+  
+  
+  
+  str = remDR1$findElements("xpath",
+        '//*[contains(concat( " ", @class, " " ), concat( " ", "store-card-name", " " ))]')
+  
+  str = lapply(str, function(x) x$getElementText()) |>  unlist()
+ 
+  # Store in the running vector
+  address[[i]]  = adrs
+  store[[i]]  = str
+  print("Done")
+  
+  # clear the search history 
+  click_box = remDR1$findElement("xpath", '//*[contains(concat( " ", @class, " " ), concat( " ", "clearTextIcon", " " ))]')
+  click_box$clickElement()
+  
+  # iterator
+  i = i + 1
+}
+```
+
+
+```{r}
+
+# unlist and remove duplicates. 
+store = store |> unlist()
+store = store |> unique()
+store = store |> str_to_title()
+
+# addresses. 
+address = address |> unlist()
+address = address |> unique()
+
+
+# mine the provinces.
+prov  = c()
+for (j in 1:length(address)){
+  
+  a       = strsplit(address[j], ", ")
+  len     = length(a[[1]])
+  prov[j] = a[[1]][len  - 2]
+  
+}
+# Identify all the unique texts and fix them accordingly. 
+unique(prov)
+
+kzn = which(prov == "Kwa Zulu Natal" | prov ==  "Kwa Zulu-Natal" | prov == "KWAZULU NATAL" |
+        prov == "KZN" |  prov ==   "Kwazulu Natal" | prov == "KwaZuluNatal" |
+        prov == "Kwa-Zulu Natal" | prov == "KwaZulu Natal")
+
+for (i in kzn){
+  prov[kzn] = "KwaZulu-Natal"
+  
+}
+
+fs = which(prov == "Freestate" | prov == "Free-State" )
+
+for (i in fs){
+  prov[fs] = "Free State"
+}
+
+ws = which(prov == "WESTERN PROVINCE" | prov == "Western Province")
+
+for(i in ws){
+  prov[ws] = "Western Cape"
+}
+
+gau = which(prov == "Gateng" | prov == "TSHWANE GAUTENG" | prov == "Johannesburg")
+for(i in gau){
+  prov[gau] = "Gauteng"
+}
+
+
+nc = which(prov == "Northen Cape")
+for (i in nc){
+  prov[nc] = "Northern Cape"
+}
+
+ec = which(prov == "Easter Cape")
+for (i in ec){
+  prov[ec] = "Eastern Cape"
+}
+
+nw = which(prov == "NW")
+for (i in nw){
+  prov[nw] = "North West"
+}
+
+# change the capitalization of province 
+prov = prov |> str_to_title() 
+```
+
+
+
+```{r}
+# Mine the CITY 
+city = c()
+
+for (j in 1:length(address)){
+  a        = strsplit(address[j], ", ")
+  len      = length(a[[1]])
+  city[j]  = a[[1]][len  - 3]
+}
+
+# Identify all the unique texts and fix them accordingly. 
+city |> unique()
+
+# change the capitalization of cities. 
+city = city |> str_to_title()
+```
+
+
+```{r}
+# Mine the country code. 
+code = c()
+
+for (j in 1:length(address)){
+  
+  a         = strsplit(address[j], ", ")
+  len       = length(a[[1]])
+  code[j]   = a[[1]][len  - 1]
+}
+```
+
+
+```{r}
+# Mine the exact address 
+
+## which address have a string length of 5 ? Isolate & fix them. 
+
+exa_add = c()
+for (j in 1:length(address)){
+  a   = strsplit(address[j], ",")
+  len = length(a[[1]])
+  
+  if (len == 5){
+    exa_add[j] = a[[1]][1]
+  }
+  
+  if (len == 6){
+    exa_add[j] = paste(a[[1]][1], a[[1]][2], sep = ",") 
+  }
+  
+  if (len == 7){
+    exa_add[j] = paste(a[[1]][1], a[[1]][2], a[[1]][3], sep = ",") 
+  }
+  
+  if (len == 8){
+    exa_add[j] = paste(a[[1]][1], a[[1]][2], a[[1]][3], sep = ",") 
+  }
+  
+  if (len == 9 | len == 10 | len == 11){
+    exa_add[j] = paste(a[[1]][1], a[[1]][2], a[[1]][3], a[[1]][4], sep = ",") 
+  }
+
+}
+
+
+# Misslc... 
+
+exa_add[685] = substr(address[685], start = 1, stop = 48)
+
+# change the capitalization of exact address. 
+exa_add = exa_add |> str_to_title()
+```
+
+
+```{r}
+# combine the vectors and export to csv
+KFC = bind_cols(store, exa_add, city, prov, code)
+
+colnames(KFC) = c("Store", "Address", "Town", "Province", "Code")
+
+# export to csv
+file_path = "C:/Users/cash/Downloads/KFC locations.csv"
+write.csv(KFC, file = file_path, row.names = FALSE)
+
+
+# this is for testing purposes
+test = read.csv("KFC locations.csv", header = TRUE , sep = ",")
+```
+
