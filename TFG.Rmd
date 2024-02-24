@@ -1,0 +1,284 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+# Here I install the RSelenium server in my computer.
+
+```{r}
+rm(list = ls())
+pacman::p_load("rvest", "tidyverse", "RSelenium", "wdman", "netstat", "stringr")
+selenium()
+
+selenium_object = selenium(retcommand = T, check = F)
+
+# if you want to close the server 
+remote_driver$server$stop()
+
+```
+
+```{r}
+# open the page and navigate BASH website
+
+remote_driver = rsDriver(browser = "chrome", 
+                         chromever = "121.0.6167.161", 
+                         verbose = F, 
+                         port = free_port())
+
+remDR          = remote_driver$client
+remDR$navigate("https://bash.com/store-finder")
+
+# find the elements that contains full addresses  
+yy = remDR$findElements(using = "xpath", value = '//*[contains(concat( " ", @class, " " ), concat( " ", "thefoschini-store-locator-0-x-addressStoreAddress", " " ))]')
+
+# Extract the full address from the list. call it test.  
+
+test = lapply(yy, function(x) x$getElementText()) |>
+  unlist()
+
+#test = as.data.frame(test)
+
+
+## get the Name of Stores elements 
+stores = remDR$findElements(using = "xpath", value = '//*[contains(concat( " ", @class, " " ), concat( " ", "thefoschini-store-locator-0-x-addressStoreAddressNumber", " " ))]')
+
+stores = lapply(stores, function(x) x$getElementText()) |>
+  unlist()
+
+
+## get the exact address elements 
+addresses = remDR$findElements(using = "xpath", value = '//*[contains(concat( " ", @class, " " ), concat( " ", "thefoschini-store-locator-0-x-addressStoreAddressStreet", " " ))]')
+
+addresses = lapply(addresses, function(x) x$getElementText()) |>
+  unlist()
+
+
+```
+
+# wrangle the data.
+
+![](images/Screenshot%202024-02-13%20123831.png)
+
+```{r}
+library("janitor")
+# create a city and province columns.
+city = c()
+prvn = c()
+
+for (i in 1:length(test)){
+  
+  string = strsplit(test[i], ",")
+  string = string |> unlist()
+  
+  len    = string |> length()
+  
+  # store province and city 
+  city[i] = string[len - 1]
+  prvn[i] = string[len]
+  
+}
+
+prvn2  = c()
+code   = c()
+
+# Get the country code and the province
+for (i in 1:length(test)){
+  
+  string = strsplit(prvn[i], " - ")
+  string = string |> unlist()
+  
+  len    = string |> length()
+  
+  # store province and country code
+  prvn2[i]  = string[1]
+  code[i]   = string[2]
+  
+}
+
+# Extract the brand name from stores vector
+stores = stores |> str_to_lower()
+
+brand = c()
+for ( i in 1:length(test)){
+  string    = strsplit(stores[i], " ")
+  brand[i]  = string[[1]][1]
+  
+}
+
+# Clean the data. 
+brand |>
+  unique()
+
+
+# ss? 
+jj = which(brand == "ss" | brand == "sportcene")
+
+for (j in jj){
+  brand[j] = "sportscene"
+}
+
+# the? 
+jk = which(brand == "the")
+
+for (j in jk){
+  brand[j] = "the fix"
+}
+
+# gg? 
+jg = which(brand == "gg")
+
+for (j in jg){
+  brand[j] = "granny goose"
+}
+
+# fix ?
+jf = which(brand == "fix")
+for (j in jf){
+  brand[j] = "the fix"
+}
+
+# american
+ja = which(brand == "american" | brand == "asj")
+for (j in ja){
+  brand[j] = "american swiss"
+}
+
+
+# gstar and g-star 
+jr = which(brand == "gstar" | brand == "g-star")
+for (j in jr){
+  brand[j] = "g-star raw"
+}
+
+# relay jeans 
+jl = which(brand == "relay")
+for (j in jl){
+  brand[j] = "relay jeans"
+}
+
+# ts 
+jt = which(brand == "ts")
+for (j in jt){
+  brand[j] = "totalsports"
+}
+
+# soda 
+jd = which(brand == "soda")
+for (j in jd){
+  brand[j] = "soda bloc"
+}
+
+# ex 
+je = which(brand == "ex")
+for (j in je){
+  brand[j] = "exact"
+}
+
+# hm
+jm = which(brand == "hm")
+for (j in jm){
+  brand[j] = "@home"
+}
+
+# sneaker
+jn = which(brand == "sneaker")
+for (j in jn){
+  brand[j] = "sneaker factory"
+}
+
+# mk  
+jm = which(brand == "mk")
+for (j in jm){
+  brand[j] = "markham"
+}
+
+# stn  
+js = which(brand == "stn")
+for (j in js){
+  brand[j] = "sterns"
+}
+
+
+# fb 
+jb = which(brand == "fb")
+for (j in jb){
+  brand[j] = "fabiani"
+}
+
+# fos
+jo = which(brand == "fos")
+for (j in jo){
+  brand[j] = "foschini"
+}
+
+
+# next
+jx = which(brand == "next")
+for (j in jx){
+  brand[j] = "next kids"
+}
+
+# galaxy 
+jg = which(brand == "galaxy")
+for (j in jg){
+  brand[j] = "galaxy & co"
+}
+
+# midrand,dc...
+jmd = which(brand == "midrand" | brand == "renegade" | brand == "tygerberg" | brand == "sports" | brand == "ndabeni" | brand == "group" | brand == "fgj" | brand == "dc")
+for (j in jmd){
+  brand[j] = "distribution centre"
+}
+
+
+# dial 
+jdi = which(brand == "dial" | brand == "dial-a-bed")
+for (j in jdi){
+  brand[j] = "dial a bed"
+}
+
+
+# others - 
+others = which(brand == "tfg" | brand == "duesouth" | brand == "sb" | brand == "ds" | brand == "sb" | brand == "design" | brand == "card" | brand == "new" | brand == "hamleys"| brand == "quench" | brand == "pylones" | brand == "readers" | brand == "sa"  | brand == "droneworld" | brand == "mytfg" )
+
+
+for (j in others){
+  brand[j] = "other"
+}
+
+
+```
+
+# Merge the vectors to one big data frame. And convert to csv.
+
+TFG
+
+```{r}
+
+
+TFG         = bind_cols(brand,stores, addresses, city, prvn2, code)
+
+colnames(TFG)  = c("Brand", "Store", "Address", "City", "Province", "Code")
+TFG$Brand      = TFG$Brand |> str_to_title() 
+TFG$Address    = TFG$Address |> str_to_title()
+TFG$Store      = TFG$Store |>str_to_title()
+TFG$City       = TFG$City |> str_to_title()
+TFG$Province   = TFG$Province |> str_to_title()
+
+
+# export to csv
+
+file_path = "C:/Users/cash/Downloads/TFG shop locations.csv"
+write.csv(TFG, file = file_path, row.names = FALSE)
+
+
+
+test = read.csv("TFG shop locations.csv", header = TRUE, sep = ",")
+
+
+
+           
+```
